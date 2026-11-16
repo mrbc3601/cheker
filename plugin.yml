@@ -1,0 +1,23 @@
+
+name: CloverTeamStats
+version: 1.0.2
+main: ru.cloverteam.stats.CloverTeamStats
+api-version: '1.21.11'
+author: MrBC01
+description: CloverTeam Telegram bot integration
+website: https://anonix.cloud
+
+commands:
+  cloverstats:
+    description: Returns CloverTeam online statistics
+    usage: /cloverstats
+    permission: cloverteam.stats
+
+  cloverwarn:
+    description: Sends a CloverTeam warning announcement
+    usage: /cloverwarn <player> <days|PERMANENT> <reasonBase64>
+
+permissions:
+  cloverteam.stats:
+    description: Allows access to CloverTeam statistics
+    default: op
