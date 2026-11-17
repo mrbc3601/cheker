@@ -3,10 +3,8 @@
   "id": "cloverteam_client",
   "version": "${version}",
   "name": "CloverTeam Client",
-  "description": "Client companion mod for the CloverTeam Minecraft server.",
-  "authors": [
-    "CloverTeam"
-  ],
+  "description": "Required CloverTeam client companion mod.",
+  "authors": ["CloverTeam"],
   "contact": {
     "sources": "https://github.com/mrbc3601/cheker"
   },
@@ -18,8 +16,8 @@
     ]
   },
   "depends": {
-    "fabricloader": ">=0.18.1",
-    "minecraft": "1.21.11",
+    "fabricloader": ">=0.19.3",
+    "minecraft": "~1.21.11",
     "java": ">=21",
     "fabric-api": "*"
   }
