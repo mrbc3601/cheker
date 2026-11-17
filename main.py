@@ -44,10 +44,6 @@ DB_PATH = BASE_DIR / os.getenv(
     "../Adm-bot/cloverteam.sqlite3"
 )
 
-ADMINS_PATH = BASE_DIR / os.getenv(
-    "ADMINS_FILE",
-    "admins.json"
-)
 
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "0"))
 MAIN_CHAT_ID = int(os.getenv("MAIN_CHAT_ID", "0"))
@@ -227,27 +223,21 @@ def parse_date(value: str):
 
 
 # =====================================================
-# ADMINS.JSON
+# DATABASE ADMINISTRATORS
 # =====================================================
 
-def load_admins() -> dict:
-    try:
-        data = json.loads(
-            ADMINS_PATH.read_text(encoding="utf-8")
-        )
-        return data if isinstance(data, dict) else {}
-
-    except FileNotFoundError:
-        return {}
-
-    except Exception:
-        log.exception("Cannot load admins.json")
-        return {}
-
-
 def get_admin(telegram_id: int):
-    value = load_admins().get(str(telegram_id))
-    return value if isinstance(value, dict) else None
+    """Возвращает административную запись только из таблицы users."""
+    row = get_user(telegram_id)
+    if not row or row["rank"] not in STAFF_RANKS:
+        return None
+
+    return {
+        "rank": row["rank"],
+        "minecraft": row["minecraft_nickname"] or "",
+        "telegram": row["telegram_username"] or "",
+        "telegram_id": int(row["telegram_id"]),
+    }
 
 
 # =====================================================
@@ -515,40 +505,25 @@ def get_rest_period(telegram_id: int):
 
 
 def get_account(telegram_id: int):
-    """
-    Сначала проверяем активный рест.
-    Это позволяет корректно обрабатывать admins.json,
-    не переписывая сам файл.
-    """
-
-    admin = get_admin(telegram_id)
+    """Получает аккаунт из users и учитывает временный рест."""
     user = get_user(telegram_id)
-    period = get_rest_period(telegram_id)
-
-    if admin:
-        base_rank = admin.get("rank")
-        nickname = admin.get("minecraft")
-        telegram = admin.get("telegram") or ""
-
-    elif user:
-        base_rank = user["rank"]
-        nickname = user["minecraft_nickname"]
-        telegram = user["telegram_username"] or ""
-
-    else:
+    if not user:
         return None
+
+    base_rank = user["rank"]
+    nickname = user["minecraft_nickname"] or ""
+    telegram = user["telegram_username"] or ""
 
     if base_rank not in RANKS:
         return None
 
-    if base_rank == "legacy":
-        nickname = nickname or ""
-    elif (
+    if base_rank != "legacy" and (
         not isinstance(nickname, str)
         or not MC_NAME_RE.fullmatch(nickname)
     ):
         return None
 
+    period = get_rest_period(telegram_id)
     if period:
         return {
             "rank": "rest",
@@ -575,11 +550,11 @@ def is_senior_admin(telegram_id: int) -> bool:
     if get_rest_period(telegram_id):
         return False
 
-    admin = get_admin(telegram_id)
+    user = get_user(telegram_id)
 
     return bool(
-        admin
-        and admin.get("rank") in {"owner", "st_admin"}
+        user
+        and user["rank"] in {"owner", "st_admin"}
     )
 
 
@@ -644,21 +619,6 @@ def get_warn_target(identifier: str):
                     "minecraft": row["minecraft_nickname"] or "",
                     "rank": row["rank"]}
 
-    # Администраторы могут храниться в admins.json, а не в users.
-    needle = normalize_username(value)
-    for telegram_id, data in load_admins().items():
-        if not isinstance(data, dict):
-            continue
-        admin_tg = str(telegram_id)
-        admin_username = normalize_username(str(data.get("telegram") or data.get("username") or ""))
-        admin_mc = str(data.get("minecraft") or data.get("minecraft_nickname") or "")
-        if value.isdigit() and admin_tg == value:
-            match = True
-        else:
-            match = (needle and needle == admin_username) or (admin_mc and admin_mc.lower() == value.lower())
-        if match:
-            return {"telegram_id": int(telegram_id), "username": admin_username,
-                    "minecraft": admin_mc, "rank": data.get("rank", "player")}
     return None
 
 
@@ -2708,25 +2668,14 @@ async def rest_admin_decision(callback: CallbackQuery):
 
             target_id = request["applicant_id"]
 
-            admin = get_admin(target_id)
-
-            if admin:
-                target_user = {
-                    "rank": admin.get("rank"),
-                    "minecraft_nickname": admin.get("minecraft"),
-                    "telegram_username": normalize_username(
-                        admin.get("telegram") or ""
-                    )
-                }
-            else:
-                target_user = conn.execute(
-                    """
-                    SELECT *
-                    FROM users
-                    WHERE telegram_id = ?
-                    """,
-                    (target_id,)
-                ).fetchone()
+            target_user = conn.execute(
+                """
+                SELECT *
+                FROM users
+                WHERE telegram_id = ?
+                """,
+                (target_id,)
+            ).fetchone()
 
             if not target_user:
                 await callback.answer(
@@ -2736,15 +2685,9 @@ async def rest_admin_decision(callback: CallbackQuery):
                 )
                 return
 
-            actual_nickname = (
-                target_user["minecraft_nickname"]
-                if isinstance(target_user, dict)
-                else target_user["minecraft_nickname"]
-            )
+            actual_nickname = target_user["minecraft_nickname"]
 
-            actual_username = normalize_username(
-                target_user["telegram_username"] or ""
-            )
+            actual_username = normalize_username(target_user["telegram_username"] or "")
 
             if (
                 actual_nickname.lower()
@@ -3331,16 +3274,6 @@ async def cmd_warn(message: Message):
         return
 
     if should_ban:
-        # Если пользователь является записью admins.json, ранг в users также создаётся.
-        with db_connect() as conn:
-            conn.execute(
-                "INSERT INTO users(telegram_id, telegram_username, minecraft_nickname, rank) "
-                "VALUES (?, ?, ?, 'warnbanned') "
-                "ON CONFLICT(telegram_id) DO UPDATE SET rank = 'warnbanned'",
-                (target_id, target["username"], target["minecraft"] or None)
-            )
-            conn.commit()
-
         server_results = []
         try:
             await rcon_command(
@@ -3518,6 +3451,48 @@ async def cmd_unwarn(message: Message):
         f"Осталось активных варнов: <b>{remaining}/3</b>\n\n"
         "Ранг и серверные блокировки не изменялись."
     )
+
+
+# =====================================================
+# /SG — SCREENSHOT REQUEST
+# =====================================================
+
+async def cmd_sg(message: Message):
+    if not message.from_user:
+        return
+
+    account = await require_registered(message)
+    if not account:
+        return
+
+    if account["rank"] not in STAFF_RANKS:
+        await message.reply("Команда доступна только сотрудникам CloverTeam.")
+        return
+
+    args = extract_command(message).split()
+    if len(args) != 1 or not MC_NAME_RE.fullmatch(args[0]):
+        await message.reply("Использование: <code>/sg MinecraftNick</code>")
+        return
+
+    nickname = args[0]
+    try:
+        response = await rcon_command("cloversg " + nickname)
+        response = (response or "").strip()
+        if response.startswith("CLOVER_SG_QUEUED"):
+            await message.reply(
+                f"Запрос ScreenGrab для <b>{safe_html(nickname)}</b> отправлен. "
+                "Игрок получит уведомление в игре."
+            )
+        else:
+            await message.reply(
+                f"Paper-плагин не подтвердил запрос для <b>{safe_html(nickname)}</b>.\n"
+                f"<code>{safe_html(response[:500] or 'Нет ответа')}</code>"
+            )
+    except asyncio.TimeoutError:
+        await message.reply("Время ожидания ответа Paper-плагина истекло.")
+    except Exception:
+        log.exception("ScreenGrab request failed for %s", nickname)
+        await message.reply("Не удалось отправить ScreenGrab-запрос через RCON.")
 
 
 # =====================================================
@@ -3824,6 +3799,11 @@ async def main():
     dp.message.register(
         cmd_online,
         Command("online")
+    )
+
+    dp.message.register(
+        cmd_sg,
+        Command("sg")
     )
 
     dp.message.register(
