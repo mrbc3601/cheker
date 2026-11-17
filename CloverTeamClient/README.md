@@ -1,30 +1,27 @@
 # CloverTeam Client
 
-Client-side Fabric mod for CloverTeam.
+Client-side Fabric mod for Minecraft Java 1.21.11 and Java 21.
 
-## Target environment
+## Current stage
 
-- Minecraft Java Edition 1.21.11
-- Java 21
-- Fabric Loader 0.18.1
-- Fabric API 0.141.6+1.21.11
-- Fabric Loom 1.14.10
+- Fabric client entrypoint and dependency metadata.
+- Client/server payload channel definitions.
+- Client handshake response for the Paper plugin.
+- Visible in-game notification when a ScreenGrab request arrives.
+- Acknowledgement that the notification was displayed.
+
+**Not implemented yet:** screenshot capture, screenshot transfer to the bot, automatic installer, and a complete server-side mandatory-mod gate. The acknowledgement is not a screenshot receipt.
 
 ## Build
 
-From this directory, with JDK 21 and Gradle 9.2 or newer installed:
+Install JDK 21 and Gradle 9.2 or newer. From this directory run:
 
 ```bash
 gradle build
 ```
 
-The distributable remapped mod JAR is produced in `build/libs/`.
+The remapped JAR will be created in `build/libs/`.
 
-## Current status
+## Privacy
 
-This is the initial project scaffold. It registers a client entrypoint and logs
-when the mod loads. Server protocol, compatibility checks, and the installer
-will be developed in later stages.
-
-Any feature that captures a player's game screen must be clearly disclosed to
-the player before capture. This scaffold does not implement screen capture.
+The intended feature is limited to the Minecraft game image. It must not capture the operating-system desktop or other applications. A visible in-game notice is required before any future capture.
