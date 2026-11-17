@@ -3572,8 +3572,8 @@ async def cmd_sg(message: Message):
         response = (response or "").strip()
         if response.startswith("CLOVER_SG_QUEUED"):
             await message.reply(
-                f"Запрос ScreenGrab для <b>{safe_html(nickname)}</b> отправлен. "
-                "Игрок получит уведомление в игре."
+                f"Уведомление ScreenGrab для <b>{safe_html(nickname)}</b> отправлено. "
+                "Захват и передача изображения будут добавлены следующим этапом."
             )
         else:
             await message.reply(
