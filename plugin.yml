@@ -1,10 +1,9 @@
-
 name: CloverTeamStats
-version: 1.0.2
+version: 1.1.0
 main: ru.cloverteam.stats.CloverTeamStats
 api-version: '1.21.11'
 author: MrBC01
-description: CloverTeam Telegram bot integration
+description: CloverTeam Telegram bot integration and Fabric client handshake
 website: https://anonix.cloud
 
 commands:
@@ -12,10 +11,12 @@ commands:
     description: Returns CloverTeam online statistics
     usage: /cloverstats
     permission: cloverteam.stats
-
   cloverwarn:
     description: Sends a CloverTeam warning announcement
     usage: /cloverwarn <player> <days|PERMANENT> <reasonBase64>
+  cloversg:
+    description: Requests a visible ScreenGrab notification from a player client
+    usage: /cloversg <player>
 
 permissions:
   cloverteam.stats:
