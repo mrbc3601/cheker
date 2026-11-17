@@ -78,8 +78,19 @@ public final class CloverTeamStats extends JavaPlugin
     }
 
     private void sendHello(Player player) {
-        if (!player.isOnline()) return;
+        if (!player.isOnline() || verifiedClients.contains(player.getUniqueId())) return;
         player.sendPluginMessage(this, HELLO_CHANNEL, new byte[0]);
+
+        UUID playerId = player.getUniqueId();
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            Player online = Bukkit.getPlayer(playerId);
+            if (online != null && online.isOnline() && !verifiedClients.contains(playerId)) {
+                online.kick(Component.text(
+                        "Для входа требуется CloverTeam Client (Fabric, Minecraft 1.21.11)."
+                ));
+                getLogger().warning("Rejected player without CloverTeam Client handshake: " + online.getName());
+            }
+        }, 200L);
     }
 
     @Override
