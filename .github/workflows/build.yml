@@ -1,0 +1,40 @@
+name: Build CloverTeam projects
+
+on:
+  push:
+    branches: [feature/cloverteam-client]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check bot syntax
+        run: python -m py_compile main.py
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build Paper plugin
+        run: mvn -B -f pom.xml package
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.2.1"
+
+      - name: Build Fabric client
+        working-directory: CloverTeamClient
+        run: gradle build --no-daemon
