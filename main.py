@@ -3454,6 +3454,98 @@ async def cmd_unwarn(message: Message):
 
 
 # =====================================================
+# ADMIN RANK MANAGEMENT — SQLITE ONLY
+# =====================================================
+
+async def cmd_adminadd(message: Message):
+    if not message.from_user:
+        return
+
+    if not is_senior_admin(message.from_user.id):
+        await message.reply("Команда доступна только owner и st_admin.")
+        return
+
+    parts = extract_command(message).split()
+    if len(parts) != 2 or not parts[0].isdigit():
+        await message.reply("Использование: <code>/adminadd TelegramID rank</code>")
+        return
+
+    target_id = int(parts[0])
+    new_rank = parts[1].lower()
+    actor = get_account(message.from_user.id)
+    if new_rank not in STAFF_RANKS:
+        await message.reply("Неизвестный ранг. Можно назначить: " + ", ".join(sorted(STAFF_RANKS)))
+        return
+
+    target = get_user(target_id)
+    if not target:
+        await message.reply("Пользователь не найден в таблице users. Сначала он должен зарегистрироваться.")
+        return
+
+    actor_rank = actor["rank"] if actor else ""
+    target_rank = target["rank"]
+    if actor_rank != "owner" and (
+        target_rank not in RANKS or RANKS.index(target_rank) >= RANKS.index(actor_rank)
+        or RANKS.index(new_rank) >= RANKS.index(actor_rank)
+    ):
+        await message.reply("Вы не можете изменять пользователя с таким рангом или назначать этот ранг.")
+        return
+
+    if target_id == message.from_user.id:
+        await message.reply("Нельзя менять собственный ранг этой командой.")
+        return
+
+    with db_connect() as conn:
+        conn.execute("UPDATE users SET rank = ? WHERE telegram_id = ?", (new_rank, target_id))
+        conn.commit()
+
+    log.info("Admin rank changed: actor=%s target=%s rank=%s", message.from_user.id, target_id, new_rank)
+    await message.reply(
+        f"Ранг пользователя <code>{target_id}</code> изменён на <b>{safe_html(new_rank)}</b>."
+    )
+
+
+async def cmd_admindel(message: Message):
+    if not message.from_user:
+        return
+
+    if not is_senior_admin(message.from_user.id):
+        await message.reply("Команда доступна только owner и st_admin.")
+        return
+
+    parts = extract_command(message).split()
+    if len(parts) != 1 or not parts[0].isdigit():
+        await message.reply("Использование: <code>/admindel TelegramID</code>")
+        return
+
+    target_id = int(parts[0])
+    if target_id == message.from_user.id:
+        await message.reply("Нельзя снять собственный ранг этой командой.")
+        return
+
+    actor = get_account(message.from_user.id)
+    target = get_user(target_id)
+    if not target or target["rank"] not in STAFF_RANKS:
+        await message.reply("Администратор с таким Telegram ID не найден в users.")
+        return
+
+    actor_rank = actor["rank"] if actor else ""
+    target_rank = target["rank"]
+    if actor_rank != "owner" and (
+        target_rank not in RANKS or RANKS.index(target_rank) >= RANKS.index(actor_rank)
+    ):
+        await message.reply("Вы не можете снять ранг у пользователя с таким же или более высоким рангом.")
+        return
+
+    with db_connect() as conn:
+        conn.execute("UPDATE users SET rank = 'player' WHERE telegram_id = ?", (target_id,))
+        conn.commit()
+
+    log.info("Admin rank removed: actor=%s target=%s", message.from_user.id, target_id)
+    await message.reply(f"Административный ранг пользователя <code>{target_id}</code> снят.")
+
+
+# =====================================================
 # /SG — SCREENSHOT REQUEST
 # =====================================================
 
@@ -3824,6 +3916,16 @@ async def main():
     dp.message.register(
         cmd_unwarn,
         Command("unwarn")
+    )
+
+    dp.message.register(
+        cmd_adminadd,
+        Command("adminadd")
+    )
+
+    dp.message.register(
+        cmd_admindel,
+        Command("admindel")
     )
 
     # ---------------------------------------------
